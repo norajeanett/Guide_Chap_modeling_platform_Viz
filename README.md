@@ -19,6 +19,7 @@ A custom backtest visualization in CHAP is:
 - Returning an Altair chart
 
 - Automatically discoverable by the CLI and Modeling App
+- 
 
 Once registered, your plot will be available via:
 ```python
@@ -49,8 +50,40 @@ Forcasts
 
 Your job is to transform these into a meaningful visualization.
 
+**Example input DataFrames**
 
-## Create a new plot file 
+To better understand how these DataFrames are structured in practise, the following simplified example illustrated the shape of the input passed to plot()
+
+Observations 
+```text
+  location  time_period  disease_cases
+0  Oslo     2024-01      120
+1  Oslo     2024-02      150
+2  Bergen   2024-01       80
+```
+
+Forcasts 
+```text
+  location  time_period  horizon_distance  sample  forecast
+0  Oslo     2024-01      1                 0       118
+1  Oslo     2024-01      1                 1       123
+2  Oslo     2024-01      1                 2       121
+3  Oslo     2024-02      1                 0       155
+4  Oslo     2024-02      1                 1       149
+```
+
+Notice that:
+
+- Each (location, time_period, horizon_distance) appears multiple times due to the sample column.
+
+- The sample column represents draws from the predictive distribution.
+
+- Most backtest visualizations require collapsing this dimension (e.g., computing a median or quantiles) before comparing forecasts with observations.
+
+This aggregation step is central to nearly all backtest visualizations in CHAP.
+
+
+**Create a new plot file** 
 Create a new file inside: 
 ```python
 chap_core/assessment/backtest_plots/
@@ -226,6 +259,139 @@ Most backtest plots follow the same technical structure:
 5. Build Altair chart (single, layered, faceted, or concatenated)
 
 Once you understand this pattern, implementing new visualizations becomes straightforward
+
+
+---
+# Common Types of Backtest Visualizations
+
+Below is a structured overview of useful plot types and how to implement them in CHAP. Each type typically differs along three axes:
+
+- _Sample reduction_: median/mean vs quantiles vs full distribution
+
+- _Grouping dimension_: horizon vs location vs time (or combinations)
+
+- _Chart composition_: single chart vs layered vs faceted vs concatenated dashboards
+
+
+**1. Prediction vs Truth (Scatter)**
+
+**Purpose:** _Detect bias and outliers._
+
+**Implementation pattern:**
+
+- Reduce sample → a point forecast (e.g., median) per (```location```, ```time_period```, ```horizon_distance```)
+
+- Merge with observations on (```location```, ```time_period```)
+
+- Scatter plot: x = disease_cases, y = prediction
+
+- Optional: add a 45° reference line for “perfect prediction”
+
+
+**2. Error by Horizon (Line)**
+
+**Purpose:** Show performance degradation with forecast distance.
+
+**Implementation pattern:**
+
+- Reduce sample → point forecast (median/mean)
+
+- Merge with observations
+
+- Compute an error metric per row (e.g., ```abs_error```, ```sq_error```)
+
+- Aggregate by horizon_distance
+
+- Line plot of error vs horizon
+
+
+
+**3. Error by Location (Bar or Box)**
+
+**Purpose:** Identify difficult regions.
+
+**Implementation pattern:**
+
+- Compute error per data point
+- Aggregate per `location`
+- Use:
+    - Bar chart (mean error)
+    - Box plot (distribution of errors)
+
+
+
+**4. Time Series with Prediction Interval**
+
+**Purpose:** Inspect model dynamics and uncertainty.
+
+**Implementation pattern:**
+
+- Compute median + lower/upper quantiles per time
+- Layer:
+    - `mark_area` (interval)
+    - `mark_line` (median)
+    - `mark_point` or `mark_line` (observations)
+- Optionally facet by location
+
+
+
+**5. Coverage Plot**
+
+**Purpose:** Check whether prediction intervals are well calibrated.
+
+**Implementation pattern:**
+
+- For each point: check if truth lies within interval
+- Compute coverage rate per horizon
+- Plot as bar or line
+
+
+
+**6. Bias Plot**
+
+**Purpose:** Detect systematic over- or under-prediction.
+
+**Implementation:**
+
+- Error = prediction − truth
+- Mean error per horizon or location
+- Line or bar plot
+
+
+
+**7. Heatmaps**
+
+**Purpose:** Reveal structured error patterns.
+
+Examples:
+
+- Horizon × Time
+- Location × Horizon
+
+Implementation:
+
+- Aggregate metric per grid cell
+- Use `mark_rect` with color encoding
+
+
+**8. Dashboard (Multiple Panels)**
+
+**Purpose:** Provide a compact summary.
+
+Implementation:
+
+- Create 2–4 individual charts
+- Combine using:
+    - `alt.vconcat`
+    - `alt.hconcat`
+
+The `plot()` method may return:
+
+- `alt.Chart`
+- `LayerChart`
+- `FacetChart`
+- `VConcatChart`
+- `HConcatChart`
 
 
 
